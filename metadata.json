@@ -1,0 +1,7 @@
+{
+  "name": "Conversational Voice Coach",
+  "description": "Practice your public speaking and cadence with a real-time AI voice coach using the Gemini Live API.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
