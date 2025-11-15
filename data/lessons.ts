@@ -14,7 +14,11 @@ export const lessons: Lesson[] = [
         title: 'Dynamic Cadence (More Effective)',
         text: 'Hello! My name is... and I want to talk to you about something that is VERY important... for your business.'
       }
-    ]
+    ],
+    practiceScript: {
+      title: 'Practice Script: Introducing Your Idea',
+      script: '“Good morning everyone. [pause] My name is [Your Name], and I am thrilled to share an idea that I believe [pause] will revolutionize how we approach [specific topic]. It’s about creating a more [adjective] and [another adjective] future for us all.”'
+    }
   },
   {
     day: 2,
@@ -29,7 +33,11 @@ export const lessons: Lesson[] = [
         title: 'With Pauses (Impactful)',
         text: 'If you want to grow... you need a sales funnel. A system that ATTRACTS leads... NURTURES them... and CONVERTS them into paying clients.'
       }
-    ]
+    ],
+    practiceScript: {
+      title: 'Practice Script: The Power of Silence',
+      script: '“Consider this: [pause] The biggest mistakes are often made when we rush. [pause] Taking a moment… [pause] to reflect… [pause] can truly change the outcome. Silence, [pause] when used deliberately, [pause] is not empty… [pause] it is full of meaning.”'
+    }
   },
   {
     day: 3,
@@ -44,7 +52,11 @@ export const lessons: Lesson[] = [
         title: 'Speeding Up for Excitement',
         text: 'Then all of a sudden everything changed in an instant and we saw results like we\'d never seen before!'
       }
-    ]
+    ],
+    practiceScript: {
+      title: 'Practice Script: A Story of Discovery',
+      script: '“Let me tell you a quick story. We were working on this complex problem, really digging deep into the data, [speak slowly] searching for that one crucial insight. And then, [speak quickly] suddenly, a pattern emerged, clear as day! It transformed everything we thought we knew.”'
+    }
   },
   {
     day: 4,
@@ -59,7 +71,11 @@ export const lessons: Lesson[] = [
         title: 'Example: Word Stretching for Impact',
         text: 'This is a huuuuge opportunity.'
       }
-    ]
+    ],
+    practiceScript: {
+      title: 'Practice Script: Highlighting Key Points',
+      script: '“This next point is ABSOLUTELY critical. [Emphasize "absolutely"] We must, [pause] and I mean MUST, [stretch "must"] focus on customer retention. It’s not just important; it’s PARAMOUNT [emphasize and stretch "paramount"] to our long-term success.”'
+    }
   },
   {
     day: 5,
@@ -74,7 +90,11 @@ export const lessons: Lesson[] = [
         title: 'Excited Tone',
         text: 'This is a fantastic issue that requires our immediate attention!'
       }
-    ]
+    ],
+    practiceScript: {
+      title: 'Practice Script: Expressing Confidence',
+      script: '“I am incredibly confident [speak with enthusiasm] that we can achieve these ambitious goals. This team has the talent, [speak firmly] the dedication, and the drive to make a real difference. We are ready to succeed, [speak with conviction] and we will.”'
+    }
   },
   {
     day: 6,
@@ -85,7 +105,11 @@ export const lessons: Lesson[] = [
         title: 'Example Hook Delivery',
         text: 'Let\'s be real... Posting randomly on social media... is a complete waste of your time.'
       }
-    ]
+    ],
+    practiceScript: {
+      title: 'Practice Script: The Startling Statistic',
+      script: '“Did you know [pause] that 80% of businesses fail within the first five years? [pause] That’s a staggering number. [Speak slowly, gravely] But what if I told you there’s a simple strategy [speak with intrigue] that could dramatically increase your chances of not just surviving, [speak confidently] but thriving?”'
+    }
   },
   {
     day: 7,
