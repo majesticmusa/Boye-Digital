@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { GoogleGenAI, LiveSession, LiveServerMessage, Modality } from "@google/genai";
+import { GoogleGenAI, LiveServerMessage, Modality } from "@google/genai";
 import { Message } from './types';
 import { createBlob, decode, decodeAudioData } from './utils/audioUtils';
 import ChatMessage from './components/ChatMessage';
@@ -24,7 +24,9 @@ export default function App() {
     });
     
     const aiRef = useRef<GoogleGenAI | null>(null);
-    const sessionPromiseRef = useRef<Promise<LiveSession> | null>(null);
+    // FIX: Remove explicit type 'LiveSession' as it's not exported.
+    // The promise will correctly infer its resolved value type.
+    const sessionPromiseRef = useRef<Promise<any> | null>(null); 
     const inputAudioContextRef = useRef<AudioContext | null>(null);
     const outputAudioContextRef = useRef<AudioContext | null>(null);
     const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
@@ -33,8 +35,13 @@ export default function App() {
     const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
     const chatContainerRef = useRef<HTMLDivElement>(null);
 
+    // Initialise GoogleGenAI once on mount. If a dynamic API key is needed later (e.g., for Veo),
+    // this would need to be moved to create a new instance before each API call.
     useEffect(() => {
       try {
+        if (!process.env.API_KEY) {
+          throw new Error("API_KEY is not defined.");
+        }
         aiRef.current = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
       } catch (err) {
         console.error("Failed to initialize GoogleGenAI", err);
@@ -49,6 +56,24 @@ export default function App() {
     }, [conversation]);
 
     const stopSession = useCallback(async () => {
+        // Stop all audio sources
+        sourcesRef.current.forEach(source => source.stop());
+        sourcesRef.current.clear();
+        nextStartTimeRef.current = 0;
+
+        // Disconnect and clean up microphone processing
+        scriptProcessorRef.current?.disconnect();
+        scriptProcessorRef.current = null;
+        micStreamRef.current?.getTracks().forEach(track => track.stop());
+        micStreamRef.current = null;
+        
+        // Close audio contexts
+        inputAudioContextRef.current?.close().catch(console.error);
+        inputAudioContextRef.current = null;
+        outputAudioContextRef.current?.close().catch(console.error);
+        outputAudioContextRef.current = null;
+        
+        // Close LiveSession
         if (sessionPromiseRef.current) {
             try {
                 const session = await sessionPromiseRef.current;
@@ -60,22 +85,7 @@ export default function App() {
             }
         }
 
-        micStreamRef.current?.getTracks().forEach(track => track.stop());
-        micStreamRef.current = null;
-        
-        scriptProcessorRef.current?.disconnect();
-        scriptProcessorRef.current = null;
-        
-        inputAudioContextRef.current?.close().catch(console.error);
-        inputAudioContextRef.current = null;
-        
-        outputAudioContextRef.current?.close().catch(console.error);
-        outputAudioContextRef.current = null;
-        
-        sourcesRef.current.forEach(source => source.stop());
-        sourcesRef.current.clear();
-        nextStartTimeRef.current = 0;
-
+        // Reset state
         setIsMainSessionActive(false);
         setIsLessonPracticeActive(false);
         setIsConnecting(false);
@@ -84,7 +94,7 @@ export default function App() {
 
     const startSession = useCallback(async (systemInstruction: string, initialMessages: Message[] = []) => {
         if (!aiRef.current) {
-            setError("AI not initialized.");
+            setError("AI not initialized. Please refresh or check console for API key errors.");
             return;
         }
         stopSession(); // Ensure any existing session is stopped
@@ -99,6 +109,23 @@ export default function App() {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             micStreamRef.current = stream;
 
+            // Setup audio processing pipeline *before* connecting to Live API
+            const inputSource = inputAudioContextRef.current.createMediaStreamSource(stream);
+            const scriptProcessor = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
+            scriptProcessorRef.current = scriptProcessor; // Store ref for cleanup
+
+            scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
+                const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
+                const pcmBlob = createBlob(inputData);
+                // CRITICAL: Solely rely on sessionPromise resolves and then call `session.sendRealtimeInput`, **do not** add other condition checks.
+                sessionPromiseRef.current?.then((session) => {
+                    session.sendRealtimeInput({ media: pcmBlob });
+                });
+            };
+            inputSource.connect(scriptProcessor);
+            scriptProcessor.connect(inputAudioContextRef.current.destination);
+
+            // Connect to Live API
             sessionPromiseRef.current = aiRef.current.live.connect({
                 model: 'gemini-2.5-flash-native-audio-preview-09-2025',
                 config: {
@@ -113,12 +140,7 @@ export default function App() {
                 callbacks: {
                     onopen: () => {
                         setIsConnecting(false);
-                        // Determine if it's a main session or lesson practice based on the current tab or context
-                        if (activeTab === 'lessons') { // Assuming startSession is only called for lesson practice when on lessons tab.
-                           setIsLessonPracticeActive(true);
-                        } else {
-                           setIsMainSessionActive(true);
-                        }
+                        // The active session type (main/lesson) is set by the caller.
                     },
                     onmessage: async (message: LiveServerMessage) => {
                         const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
@@ -164,46 +186,46 @@ export default function App() {
                     onerror: (e: ErrorEvent) => {
                         console.error('Session error:', e);
                         setError('An error occurred. Please try again.');
-                        stopSession();
+                        // stopSession will be called by onclose.
                     },
                     onclose: (e: CloseEvent) => {
-                        // Only set active to false if it was truly active
-                        if (isMainSessionActive || isLessonPracticeActive) {
-                            stopSession();
-                        }
+                        // `stopSession` already handles resetting all state. No conditional check needed here.
+                        stopSession(); 
                     },
                 }
             });
 
         } catch (err) {
-            console.error(err);
-            setError('Failed to start session. Please check microphone permissions.');
+            console.error("Error starting session:", err);
+            setError('Failed to start session. Please check microphone permissions and ensure API_KEY is valid.');
             setIsConnecting(false);
-            setIsMainSessionActive(false);
-            setIsLessonPracticeActive(false);
+            setIsMainSessionActive(false); // Ensure state is reset even if connection fails
+            setIsLessonPracticeActive(false); // Ensure state is reset even if connection fails
         }
-    }, [stopSession, activeTab, isMainSessionActive, isLessonPracticeActive]); // Added activeTab to dependency array
+    }, [stopSession]); // Dependencies simplified: stopSession is the main external dependency.
 
     const handleStartMainSession = useCallback(() => {
         const systemInstruction = 'You are a friendly and encouraging public speaking coach. Your goal is to help the user practice their vocal cadence. Engage in a natural conversation, provide feedback, and offer tips on pacing, pausing, and emphasis.';
         const initialMessages: Message[] = [{id: 0, sender: 'system', text: 'Your practice session has started. Speak into your microphone.'}];
-        startSession(systemInstruction, initialMessages);
-        setIsMainSessionActive(true); // Manually set to true for main session
-        setActiveTab('lessons'); // Ensure we are on a tab that doesn't conflict with chat UI
+        startSession(systemInstruction, initialMessages).then(() => {
+            setIsMainSessionActive(true);
+            setActiveTab('lessons'); // Ensure we are on a tab that doesn't conflict with chat UI
+        }).catch(err => console.error("Failed to start main session:", err));
     }, [startSession]);
 
     const handleEndCurrentSession = useCallback(() => {
         stopSession();
-        // No need to set activeTab, it will revert to its previous state
     }, [stopSession]);
     
     const getStatus = () => {
         const sessionActive = isMainSessionActive || isLessonPracticeActive;
         if (isConnecting) return { text: 'Connecting...', color: 'amber' };
         if (!sessionActive) return { text: 'Inactive', color: 'gray' };
+        // Check if output is speaking or input is listening
         if (conversation.currentOutput) return { text: 'Speaking...', color: 'amber' };
         if (conversation.currentInput) return { text: 'Listening...', color: 'green' };
-        return { text: 'Idle', color: 'green' };
+        // If nothing actively being transcribed, but session is active
+        return { text: 'Active', color: 'green' }; // Changed from 'Idle' to 'Active' for clarity
     };
 
     const status = getStatus();
@@ -264,7 +286,7 @@ export default function App() {
                         <Lessons 
                             ai={aiRef.current} 
                             isLessonPracticeActive={isLessonPracticeActive}
-                            startSession={startSession}
+                            startSession={(instruction, initialMsgs) => startSession(instruction, initialMsgs).then(() => setIsLessonPracticeActive(true)).catch(err => console.error("Failed to start lesson practice:", err))} // Pass callback to set state
                             stopSession={stopSession}
                             conversation={conversation}
                             setConversation={setConversation}
