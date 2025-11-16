@@ -45,7 +45,7 @@ export default function App() {
         aiRef.current = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
       } catch (err) {
         console.error("Failed to initialize GoogleGenAI", err);
-        setError("Failed to initialize AI. Please check the API key.");
+        setError("Failed to initialize AI. Please ensure your API_KEY is correctly configured.");
       }
     }, []);
 
@@ -185,7 +185,7 @@ export default function App() {
                     },
                     onerror: (e: ErrorEvent) => {
                         console.error('Session error:', e);
-                        setError('An error occurred. Please try again.');
+                        setError('An error occurred during the session. Please try again.');
                         // stopSession will be called by onclose.
                     },
                     onclose: (e: CloseEvent) => {
@@ -195,9 +195,20 @@ export default function App() {
                 }
             });
 
-        } catch (err) {
+        } catch (err: any) { // Use 'any' to safely access error properties like 'message' or 'name'
             console.error("Error starting session:", err);
-            setError('Failed to start session. Please check microphone permissions and ensure API_KEY is valid.');
+            if (err.message && err.message.includes("API key not valid")) {
+                setError('Failed to connect: Your API key is invalid or not configured. Please ensure it is set correctly.');
+            } else if (err.name === 'NotAllowedError' || err.name === 'NotFoundError') {
+                setError('Failed to start session: Please ensure microphone permissions are granted.');
+            } else if (err.name === 'SecurityError') {
+                 setError('Failed to start session: Microphone access blocked. Please check browser settings (e.g., ensure HTTPS if running locally).');
+            } else if (err.message && (err.message.includes("network") || err.message.includes("Failed to fetch"))) {
+                setError('Failed to connect: Network error. Please check your internet connection.');
+            }
+            else {
+                setError('Failed to start session. An unexpected error occurred. Please try again or check the console for more details.');
+            }
             setIsConnecting(false);
             setIsMainSessionActive(false); // Ensure state is reset even if connection fails
             setIsLessonPracticeActive(false); // Ensure state is reset even if connection fails
@@ -220,6 +231,7 @@ export default function App() {
     const getStatus = () => {
         const sessionActive = isMainSessionActive || isLessonPracticeActive;
         if (isConnecting) return { text: 'Connecting...', color: 'amber' };
+        if (error) return { text: 'Error', color: 'red' }; // Display error status
         if (!sessionActive) return { text: 'Inactive', color: 'gray' };
         // Check if output is speaking or input is listening
         if (conversation.currentOutput) return { text: 'Speaking...', color: 'amber' };

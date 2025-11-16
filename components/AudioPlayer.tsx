@@ -39,7 +39,10 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ ai, text }) => {
     }, [cleanup]);
 
     const generateAudio = async () => {
-        if (!ai || !text) return;
+        if (!ai || !text) {
+            setError("AI not initialized or text not provided.");
+            return;
+        }
         setIsLoading(true);
         setError(null);
         try {
@@ -61,11 +64,17 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ ai, text }) => {
                 audioBufferRef.current = audioBuffer;
                 return audioBuffer;
             } else {
-                throw new Error("No audio data received.");
+                throw new Error("No audio data received or model output was empty.");
             }
-        } catch (err) {
+        } catch (err: any) { // Use 'any' to safely access error properties like 'message'
             console.error("Audio generation failed:", err);
-            setError("Could not generate audio.");
+            if (err.message && err.message.includes("API key not valid")) {
+                setError('Audio generation failed: Your API key is invalid or not configured correctly.');
+            } else if (err.message && (err.message.includes("network") || err.message.includes("Failed to fetch"))) {
+                setError('Audio generation failed: Network issue. Please check your internet connection.');
+            } else {
+                setError('Could not generate audio. Please try again.');
+            }
         } finally {
             setIsLoading(false);
         }
